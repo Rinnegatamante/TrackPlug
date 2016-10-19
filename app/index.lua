@@ -1,5 +1,8 @@
 -- Scanning TrackPlug folder
 local tbl = System.listDirectory("ux0:/data/TrackPlug")
+if tbl == nil then
+	tbl = {}
+end
 
 -- Convert a 32 bit binary string to a integer
 function bin2int(str)
@@ -99,6 +102,114 @@ end
 Timer.destroy(tmr)
 Graphics.freeImage(splash)
 
+-- Background wave effect
+local colors = {
+	{Color.new(0,132,255), Color.new(72,185,255), Color.new(0,132,255)},  -- Cyan
+	{Color.new(255,132,0), Color.new(255,185,72), Color.new(255,132,0)},  -- Orange
+	{Color.new(255,72,72), Color.new(255,132,132), Color.new(255,72,72)}, -- Pink
+	{Color.new(255,0,0), Color.new(255,72,72), Color.new(255,0,0)}, 	  -- Red
+	{Color.new(255,72,255), Color.new(255,185,255), Color.new(255,72,255)},	-- Magenta
+	{Color.new(72,72,72), Color.new(0,0,0), Color.new(0,255,0)}	-- Black'N'Green
+}
+col_idx = 1
+local function LoadWave(height,dim,f,style,x_dim)	
+	if style == 1 then
+		f=f or 0.1
+		local onda={pi=math.pi,Frec=f,Long_onda=dim,Amplitud=height}
+		function onda:color(a,b,c) self.a=a self.b=b self.c=c end
+		function onda:init(desfase)
+			desfase=desfase or 0
+			if not self.contador then
+				self.contador=Timer.new()
+			end
+			if not self.a or not self.b or not self.c then
+				self.a = 0
+				self.b = 0
+				self.c = 255
+			end
+			local t,x,y,i
+			t = Timer.getTime(self.contador)/1000+desfase
+			for x = 0,x_dim,4 do
+				y = 252+self.Amplitud*math.sin(2*self.pi*(t*self.Frec-x/self.Long_onda))
+				i = self.Amplitud*(-2*self.pi/self.Long_onda)*math.cos(2*self.pi*(t*self.Frec-x/self.Long_onda))
+				Graphics.drawLine(x-200,x+200,y-i*200,y+i*200,Color.new(self.a,self.b,self.c,math.floor(x/40)))
+			end
+			collectgarbage()
+		end
+		function onda:destroy()
+			Timer.destroy(self.contador)
+		end
+		return onda
+	end
+	if style == 2 then
+		f=f or 0.1
+		local onda={pi=math.pi,Frec=f,Long_onda=dim,Amplitud=height}
+		function onda:color(a,b,c) self.a=a self.b=b self.c=c end
+		function onda:init(desfase)
+			desfase=desfase or 0
+			if not self.contador then
+				self.contador=Timer.new()
+			end
+			if not self.a or not self.b or not self.c then
+				self.a = 0
+				self.b = 0
+				self.c = 255
+			end
+			local t,x,y,i,a
+			t = Timer.getTime(self.contador)/1000+desfase
+			if self.Amplitud <= 5 then
+				self.aumento = true
+			elseif self.Amplitud >= 110 then
+				self.aumento = false
+			end
+			if self.aumento then
+				self.Amplitud = self.Amplitud+0.1
+			else
+				self.Amplitud = self.Amplitud-0.1
+			end
+			for x = 0,x_dim,10 do
+				y = 272+self.Amplitud*math.sin(2*self.pi*(t*self.Frec-x/self.Long_onda))
+				i = self.Amplitud*(-2*self.pi/self.Long_onda)*math.cos(2*self.pi*(t*self.Frec-x/self.Long_onda))
+				for a = -3,3 do
+					Graphics.drawLine(x-20,x+20,a+y-i*20,a+y+i*20,Color.new(self.a,self.b,self.c,25-math.abs(a*5)))
+				end
+			end
+			collectgarbage()
+		end
+		function onda:destroy()
+			Timer.destroy(self.contador)
+		end
+		return onda
+	end
+	if style == 3 then
+		f=f or 0.1
+		local onda={pi=math.pi,Frec=f,Long_onda=dim,Amplitud=height}
+		function onda:color(a,b,c) self.Color=Color.new(a,b,c,40) end
+		function onda:init(desfase)
+			desfase=desfase or 0
+			if not self.contador then
+				self.contador=Timer.new()
+			end
+			if not self.Color then
+				self.Color=Color.new(0,0,255,40)
+			end
+			local t,x,y,i
+			t = Timer.getTime(self.contador)/1000+desfase
+			for x = 0,x_dim do
+				y = 252+self.Amplitud*math.sin(2*self.pi*(t*self.Frec-x/self.Long_onda))
+				Graphics.drawLine(x,x,y,240,self.Color)
+			end
+			collectgarbage()
+		end
+		function onda:destroy()
+			Timer.destroy(self.contador)
+		end
+		return onda
+	end
+end
+wav = LoadWave(15,1160, 0.1, 2, 960)
+wav:color(Color.getR(colors[col_idx][3]),Color.getG(colors[col_idx][3]),Color.getB(colors[col_idx][3]))
+
 -- Internal stuffs
 local list_idx = 1
 local order_idx = 1
@@ -168,7 +279,7 @@ function RenderList()
 			end
 		end
 	end
-	local sclr = Color.new(sel_val, sel_val, sel_val)
+	local sclr = Color.new(sel_val, sel_val, sel_val, 100)
 	Graphics.fillRect(0, 960, 4, 138, sclr)
 	Graphics.debugPrint(800, 520, "Order: " .. orders[order_idx], white)
 	while i <= list_idx + 3 do
@@ -190,7 +301,8 @@ local f_idx = 1
 local oldpad = Controls.read()
 while #tbl > 0 do
 	Graphics.initBlend()
-	Screen.clear()
+	Graphics.fillRect(0,960,0,544,colors[col_idx][2])
+	wav:init()
 	RenderList()
 	if freeze then
 		showAlarm("Do you want to delete this record permanently?", f_idx)
@@ -241,6 +353,12 @@ while #tbl > 0 do
 				list_idx = list_idx - 1
 			end
 		end
+	elseif Controls.check(pad, SCE_CTRL_SELECT) and not Controls.check(oldpad, SCE_CTRL_SELECT) then
+		col_idx = col_idx + 1
+		if col_idx > #colors then
+			col_idx = 1
+		end
+		wav:color(Color.getR(colors[col_idx][3]),Color.getG(colors[col_idx][3]),Color.getB(colors[col_idx][3]))
 	end
 	oldpad = pad
 end
