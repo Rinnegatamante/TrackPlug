@@ -62,39 +62,46 @@ while Timer.getTime(tmr) < 3000 do
 		
 		-- Getting region, playtime, icon and title name for any game
 		for i, file in pairs(tbl) do
-			System.wait(5000)
-			local titleid = string.sub(file.name,1,-5)
-			local regioncode = string.sub(file.name,1,4)
-			if regioncode == "PCSA" or regioncode == "PCSE" then
-				file.region = "USA"
-			elseif regioncode == "PCSB" then
-				file.region = "EUR"
-			elseif regioncode == "PCSF" then
-				file.region = "AUS"
-			elseif regioncode == "PCSG" then
-				file.region = "JPN"
-			elseif regioncode == "PCSH" then
-				file.region = "ASN"
+			if file.name == "config.lua" then
+				dofile("ux0:/data/TrackPlug/"..file.name)
+				cfg_idx = i
 			else
-				file.region = "UNK"
-			end
-			if System.doesFileExist("ur0:/appmeta/" .. titleid .. "/icon0.png") then
-				file.icon = Graphics.loadImage("ur0:/appmeta/" .. titleid .. "/icon0.png")
-			else
-				file.icon = unk
-			end
-			if System.doesFileExist("ux0:/app/" .. titleid .. "/sce_sys/param.sfo") then
-				fd = io.open("ux0:/app/" .. titleid .. "/sce_sys/param.sfo", FREAD)
-				file.title = extractTitle(fd)
+				local titleid = string.sub(file.name,1,-5)
+				local regioncode = string.sub(file.name,1,4)
+				if regioncode == "PCSA" or regioncode == "PCSE" then
+					file.region = "USA"
+				elseif regioncode == "PCSB" then
+					file.region = "EUR"
+				elseif regioncode == "PCSF" then
+					file.region = "AUS"
+				elseif regioncode == "PCSG" then
+					file.region = "JPN"
+				elseif regioncode == "PCSH" then
+					file.region = "ASN"
+				else
+					file.region = "UNK"
+				end
+				if System.doesFileExist("ur0:/appmeta/" .. titleid .. "/icon0.png") then
+					file.icon = Graphics.loadImage("ur0:/appmeta/" .. titleid .. "/icon0.png")
+				else
+					file.icon = unk
+				end
+				if System.doesFileExist("ux0:/app/" .. titleid .. "/sce_sys/param.sfo") then
+					fd = io.open("ux0:/app/" .. titleid .. "/sce_sys/param.sfo", FREAD)
+					file.title = extractTitle(fd)
+					io.close(fd)
+				else
+					file.title = "Unknown Title"
+				end
+				file.id = titleid
+				fd = io.open("ux0:/data/TrackPlug/" .. file.name, FREAD)
+				file.rtime = bin2int(io.read(fd, 4))
+				file.ptime = FormatTime(file.rtime)
 				io.close(fd)
-			else
-				file.title = "Unknown Title"
 			end
-			file.id = titleid
-			fd = io.open("ux0:/data/TrackPlug/" .. file.name, FREAD)
-			file.rtime = bin2int(io.read(fd, 4))
-			file.ptime = FormatTime(file.rtime)
-			io.close(fd)
+		end
+		if cfg_idx ~= nil then
+			table.remove(tbl, cfg_ifx)
 		end
 		
 	end
@@ -111,7 +118,9 @@ local colors = {
 	{Color.new(255,72,255), Color.new(255,185,255), Color.new(255,72,255)},	-- Magenta
 	{Color.new(72,72,72), Color.new(0,0,0), Color.new(0,255,0)}	-- Black'N'Green
 }
-col_idx = 1
+if col_idx == nil then
+	col_idx = 6
+end
 local function LoadWave(height,dim,f,style,x_dim)	
 	if style == 1 then
 		f=f or 0.1
@@ -359,6 +368,9 @@ while #tbl > 0 do
 			col_idx = 1
 		end
 		wav:color(Color.getR(colors[col_idx][3]),Color.getG(colors[col_idx][3]),Color.getB(colors[col_idx][3]))
+		fd = io.open("ux0:/data/TrackPlug/config.lua", FCREATE)
+		io.write(fd, "col_idx="..col_idx, 9)
+		io.close(fd)
 	end
 	oldpad = pad
 end
