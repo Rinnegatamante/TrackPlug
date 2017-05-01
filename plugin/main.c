@@ -1,51 +1,62 @@
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-#include <psp2/io/dirent.h>
-#include <psp2/io/fcntl.h>
-#include <psp2/io/stat.h>
-#include <psp2/appmgr.h>
-#include <psp2/kernel/processmgr.h>
+#include <vitasdk.h>
+#include <taihen.h>
+#include <kuio.h>
+#include <libk/string.h>
+#include <libk/stdio.h>
 
-int main_thread(SceSize args, void *argp) {
+static SceUID hook;
+static tai_hook_ref_t ref;
+static char titleid[16];
+static char fname[256];
+static uint64_t playtime = 0;
+static uint64_t tick = 0;
+
+int sceDisplaySetFrameBuf_patched(const SceDisplayFrameBuf *pParam, int sync) {
 	
-	// Creating required folders for TrackPlug if they don't exist
-	sceIoMkdir("ux0:/data/TrackPlug", 0777);
+	uint64_t t_tick = sceKernelGetProcessTimeWide();
+	
+	// Saving playtime every 10 seconds
+	if ((t_tick - tick) > 10000000){
+		tick = t_tick;
+		playtime += 10;
+		SceUID fd;
+		kuIoOpen(fname, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, &fd);
+		kuIoWrite(fd, &playtime, sizeof(uint64_t));
+		kuIoClose(fd);
+	}
+	
+	return TAI_CONTINUE(int, ref, pParam, sync);
+} 
+
+void _start() __attribute__ ((weak, alias ("module_start")));
+int module_start(SceSize argc, const void *args) {
 	
 	// Getting game Title ID
-	char titleid[16], filename[256];
 	sceAppMgrAppParamGetString(0, 12, titleid , 256);
 	
-	// Recovering current playtime
-	sprintf(filename, "ux0:/data/TrackPlug/%s.bin", titleid);
-	uint64_t playtime = 0;
-	int fd = sceIoOpen(filename, SCE_O_RDONLY, 0777);
+	// Getting current playtime
+	SceUID fd;
+	sprintf(fname, "ux0:/data/TrackPlug/%s.bin", titleid);
+	kuIoOpen(fname, SCE_O_RDONLY, &fd);
 	if (fd >= 0){
-		sceIoRead(fd, &playtime, sizeof(uint64_t));
-		sceIoClose(fd);
+		kuIoRead(fd, &playtime, sizeof(uint64_t));
+		kuIoClose(fd);
 	}
 	
-	for (;;){
+	// Getting starting tick
+	tick = sceKernelGetProcessTimeWide();
 	
-		// We update the tracking plugin every 10 secs
-		sceKernelDelayThread(10 * 1000 * 1000);
-		playtime+=10;
-		
-		// Updating the tracking file
-		int fd = sceIoOpen(filename, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
-		sceIoWrite(fd, &playtime, sizeof(uint64_t));
-		sceIoClose(fd);
+	hook = taiHookFunctionImport(&ref,
+						TAI_MAIN_MODULE,
+						TAI_ANY_LIBRARY,
+						0x7A410B64,
+						sceDisplaySetFrameBuf_patched);
 	
-	}
-
-	return 0;
+	return SCE_KERNEL_START_SUCCESS;
 }
 
-int _start(SceSize args, void *argp) {
-	SceUID thid = sceKernelCreateThread("TrackPlug", main_thread, 0x40, 0x100000, 0, 0, NULL);
-	if (thid >= 0)
-		sceKernelStartThread(thid, 0, NULL);
+int module_stop(SceSize argc, const void *args) {
 
-	return 0;
+	return SCE_KERNEL_STOP_SUCCESS;
+	
 }
