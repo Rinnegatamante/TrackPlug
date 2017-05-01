@@ -1,3 +1,7 @@
+-- Creating dirs in case they do not exist
+System.createDirectory("ux0:/data/TrackPlug")
+System.createDirectory("ux0:/data/TrackPlugArchive")
+
 -- Scanning TrackPlug folder
 local tbl = System.listDirectory("ux0:/data/TrackPlug")
 if tbl == nil then
@@ -23,91 +27,77 @@ function FormatTime(val)
 	if minutes > 0 then
 		res = res .. minutes .. "m "
 	end
-	if seconds > 0 then
-		res = res .. seconds .. "s "
-	end
+	res = res .. seconds .. "s "
 	return res
 end
 
--- Extracts title name from an SFO file descriptor
-function extractTitle(handle)
-	io.seek(handle, 0x0C, SET)
-	local data_offs = bin2int(io.read(handle, 4))
-	local title_idx = bin2int(io.read(handle, 4)) - 3 -- STITLE seems to be always the MAX-3 entry
-	io.seek(handle, (title_idx << 4) + 0x04, CUR)
-	local len = bin2int(io.read(handle, 4))
-	local dummy = io.read(handle, 4)
-	local offs = bin2int(io.read(handle, 4))
-	io.seek(handle, data_offs + offs, SET)
-	return io.read(handle, len)
+-- Recover title from homebrew database
+function recoverTitle(tid)
+	local file = System.openFile("ux0:/data/TrackPlugArchive/" .. tid .. ".txt", FREAD)
+	fsize = System.sizeFile(file)
+	local title = System.readFile(file, fsize)
+	System.closeFile(file)
+	return title
+end
+
+-- Extracts title name from an SFO file
+function extractTitle(file, tid)
+	local data = System.extractSFO(file)
+	if System.doesFileExist("ux0:/data/TrackPlugArchive/" .. tid .. ".txt") then
+		System.deleteFile("ux0:/data/TrackPlugArchive/" .. tid .. ".txt")
+	end
+	local file = System.openFile("ux0:/data/TrackPlugArchive/" .. tid .. ".txt", FCREATE)
+	System.writeFile(file, data.title, string.len(data.title))
+	System.closeFile(file)
+	return data.title
 end
 
 -- Loading unknown icon
 local unk = Graphics.loadImage("app0:/unk.png")
-
--- GekiHEN contest splashscreen
-local splash = Graphics.loadImage("app0:/splash.png")
-local tmr = Timer.new()
-local spl = 0
-local setup_finished = false
-while Timer.getTime(tmr) < 3000 do
-	Graphics.initBlend()
-	Graphics.drawImage(0, 0, splash)
-	Graphics.termBlend()
-	Screen.flip()
-	Screen.waitVblankStart()
-	spl = spl + 1
-	if not setup_finished and spl > 3 then
-		setup_finished = true
 		
-		-- Getting region, playtime, icon and title name for any game
-		for i, file in pairs(tbl) do
-			if file.name == "config.lua" then
-				dofile("ux0:/data/TrackPlug/"..file.name)
-				cfg_idx = i
-			else
-				local titleid = string.sub(file.name,1,-5)
-				local regioncode = string.sub(file.name,1,4)
-				if regioncode == "PCSA" or regioncode == "PCSE" then
-					file.region = "USA"
-				elseif regioncode == "PCSB" then
-					file.region = "EUR"
-				elseif regioncode == "PCSF" then
-					file.region = "AUS"
-				elseif regioncode == "PCSG" then
-					file.region = "JPN"
-				elseif regioncode == "PCSH" then
-					file.region = "ASN"
-				else
-					file.region = "UNK"
-				end
-				if System.doesFileExist("ur0:/appmeta/" .. titleid .. "/icon0.png") then
-					file.icon = Graphics.loadImage("ur0:/appmeta/" .. titleid .. "/icon0.png")
-				else
-					file.icon = unk
-				end
-				if System.doesFileExist("ux0:/app/" .. titleid .. "/sce_sys/param.sfo") then
-					fd = io.open("ux0:/app/" .. titleid .. "/sce_sys/param.sfo", FREAD)
-					file.title = extractTitle(fd)
-					io.close(fd)
-				else
-					file.title = "Unknown Title"
-				end
-				file.id = titleid
-				fd = io.open("ux0:/data/TrackPlug/" .. file.name, FREAD)
-				file.rtime = bin2int(io.read(fd, 4))
-				file.ptime = FormatTime(file.rtime)
-				io.close(fd)
-			end
+-- Getting region, playtime, icon and title name for any game
+for i, file in pairs(tbl) do
+	if file.name == "config.lua" then
+		dofile("ux0:/data/TrackPlug/"..file.name)
+		cfg_idx = i
+	else
+		local titleid = string.sub(file.name,1,-5)
+		local regioncode = string.sub(file.name,1,4)
+		if regioncode == "PCSA" or regioncode == "PCSE" then
+			file.region = "USA"
+		elseif regioncode == "PCSB" then
+			file.region = "EUR"
+		elseif regioncode == "PCSF" then
+			file.region = "AUS"
+		elseif regioncode == "PCSG" then
+			file.region = "JPN"
+		elseif regioncode == "PCSH" then
+			file.region = "ASN"
+		else
+			file.region = "UNK"
 		end
-		if cfg_idx ~= nil then
-			table.remove(tbl, cfg_ifx)
+		if System.doesFileExist("ur0:/appmeta/" .. titleid .. "/icon0.png") then
+			file.icon = Graphics.loadImage("ur0:/appmeta/" .. titleid .. "/icon0.png")
+		else
+			file.icon = unk
 		end
-		
+		if System.doesFileExist("ux0:/data/TrackPlugArchive/" .. titleid .. ".txt") then
+			file.title = recoverTitle(titleid)
+		elseif System.doesFileExist("ux0:/app/" .. titleid .. "/sce_sys/param.sfo") then
+			file.title = extractTitle("ux0:/app/" .. titleid .. "/sce_sys/param.sfo", titleid)
+		else
+			file.title = "Unknown Title"
+		end
+		file.id = titleid
+		fd = System.openFile("ux0:/data/TrackPlug/" .. file.name, FREAD)
+		file.rtime = bin2int(System.readFile(fd, 4))
+		file.ptime = FormatTime(file.rtime)
+		System.closeFile(fd)
 	end
 end
-Timer.destroy(tmr)
-Graphics.freeImage(splash)
+if cfg_idx ~= nil then
+	table.remove(tbl, cfg_idx)
+end
 
 -- Background wave effect
 local colors = {
@@ -368,9 +358,9 @@ while #tbl > 0 do
 			col_idx = 1
 		end
 		wav:color(Color.getR(colors[col_idx][3]),Color.getG(colors[col_idx][3]),Color.getB(colors[col_idx][3]))
-		fd = io.open("ux0:/data/TrackPlug/config.lua", FCREATE)
-		io.write(fd, "col_idx="..col_idx, 9)
-		io.close(fd)
+		fd = System.openFile("ux0:/data/TrackPlug/config.lua", FCREATE)
+		System.writeFile(fd, "col_idx="..col_idx, 9)
+		System.closeFile(fd)
 	end
 	oldpad = pad
 end
