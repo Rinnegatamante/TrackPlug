@@ -215,11 +215,11 @@ local order_idx = 1
 local orders = {"Name", "Playtime"}
 
 -- Ordering titles
-table.sort(tbl, function (a, b) return (a.title:lower() < b.title:lower() ) end)
+table.sort(tbl, function (a, b) return (string.lower(a.title) < string.lower(b.title) ) end)
 function resortList(o_type, m_idx)
 	local old_id = tbl[m_idx].id
 	if o_type == 1 then -- Name
-		table.sort(tbl, function (a, b) return (a.title:lower() < b.title:lower() ) end)
+		table.sort(tbl, function (a, b) return (string.lower(a.title) < string.lower(b.title) ) end)
 	elseif o_type == 2 then -- Playtime
 		table.sort(tbl, function (a, b) return (a.rtime > b.rtime ) end)
 	end
