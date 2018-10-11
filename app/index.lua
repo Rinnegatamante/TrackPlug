@@ -342,7 +342,7 @@ while #tbl > 0 do
 	wav:init()
 	RenderList()
 	if freeze then
-		showAlarm("Do you want to delete" .. tbl[list_idx].title .. "(" .. tbl[list_idx].id .. ")" .. "record permanently?", f_idx)
+		showAlarm("Do you want to delete this record permanently?", f_idx)
 	end
 	Graphics.termBlend()
 	Screen.flip()
