@@ -262,9 +262,27 @@ end
 local sel_val = 128
 local decrease = true
 local freeze = false
+local mov_y = 0
+local mov_step = 0
+local new_list_idx = nil
+local real_i = 1
+local big_tbl = {}
 function RenderList()
-	local y = 8
-	local i = list_idx
+	local r_max = 0
+	local r = 0
+	if #tbl < 4 then
+		r_max = 8
+	else
+		r_max = 2
+	end
+	while r < r_max do
+		for k, v in pairs(tbl) do
+			table.insert(big_tbl, v)
+		end
+		r = r + 1
+	end
+	local y = -124
+	local i = list_idx - 1
 	if not freeze then
 		if decrease then
 			sel_val = sel_val - 4
@@ -279,18 +297,38 @@ function RenderList()
 		end
 	end
 	local sclr = Color.new(sel_val, sel_val, sel_val, 100)
-	Graphics.fillRect(0, 960, 4, 138, sclr)
+	Graphics.fillRect(0, 960, 4, 140, sclr)
 	Graphics.debugPrint(800, 520, "Order: " .. orders[order_idx], white)
-	while i <= list_idx + 3 do
-		if i > #tbl then
-			break
+	if mov_y ~= 0 then
+		mov_y = mov_y + mov_step
+		if math.abs(mov_y) >= 132 then
+			mov_y = 0
+			list_idx = new_list_idx
+			i = new_list_idx - 1
 		end
-		Graphics.drawImage(5, y, tbl[i].icon)
-		Graphics.debugPrint(150, y + 25, tbl[i].title, yellow)
-		Graphics.debugPrint(150, y + 45, "Title ID: " .. tbl[i].id, white)
-		Graphics.debugPrint(150, y + 65, "Region: " .. tbl[i].region, white)
-		Graphics.debugPrint(150, y + 85, "Playtime: " .. tbl[i].ptime, white)
+	end
+	while i <= list_idx + 4 do
+		if i < 1 then
+			real_i = i
+			i = #big_tbl - math.abs(i)
+		end
+		if i ~= list_idx + 4 then
+			Graphics.drawImage(5, y + mov_y, big_tbl[i].icon)
+		end
+		Graphics.debugPrint(150, y + 25 + mov_y, big_tbl[i].title, yellow)
+		Graphics.debugPrint(150, y + 45 + mov_y, "Title ID: " .. big_tbl[i].id, white)
+		Graphics.debugPrint(150, y + 65 + mov_y, "Region: " .. big_tbl[i].region, white)
+		Graphics.debugPrint(150, y + 85 + mov_y, "Playtime: " .. big_tbl[i].ptime, white)
+		local r_idx = i % #tbl
+		if r_idx == 0 then
+			r_idx = #tbl
+		end
+		Graphics.debugPrint(900, y + 85 + mov_y, "#" .. r_idx, white)
 		y = y + 132
+		if real_i <= 0 then
+			i = real_i
+			real_i = 1
+		end
 		i = i + 1
 	end
 end
@@ -304,29 +342,33 @@ while #tbl > 0 do
 	wav:init()
 	RenderList()
 	if freeze then
-		showAlarm("Do you want to delete this record permanently?", f_idx)
+		showAlarm("Do you want to delete" .. tbl[list_idx].title .. "(" .. tbl[list_idx].id .. ")" .. "record permanently?", f_idx)
 	end
 	Graphics.termBlend()
 	Screen.flip()
 	Screen.waitVblankStart()
 	local pad = Controls.read()
-	if Controls.check(pad, SCE_CTRL_UP) and not Controls.check(oldpad, SCE_CTRL_UP) then
+	if Controls.check(pad, SCE_CTRL_UP) and mov_y == 0 then
 		if freeze then
 			f_idx = 1
 		else
-			list_idx = list_idx - 1
-			if list_idx == 0 then
-				list_idx = #tbl
+			new_list_idx = list_idx - 1
+			if new_list_idx == 0 then
+				new_list_idx = #tbl
 			end
+			mov_y = 1
+			mov_step = 22
 		end
-	elseif Controls.check(pad, SCE_CTRL_DOWN) and not Controls.check(oldpad, SCE_CTRL_DOWN) then
+	elseif Controls.check(pad, SCE_CTRL_DOWN) and mov_y == 0 then
 		if freeze then
 			f_idx = 2
 		else
-			list_idx = list_idx + 1
-			if list_idx > #tbl then
-				list_idx = 1
+			new_list_idx = list_idx + 1
+			if new_list_idx > #tbl then
+				new_list_idx = 1
 			end
+			mov_y = -1
+			mov_step = -22
 		end
 	elseif Controls.check(pad, SCE_CTRL_LTRIGGER) and not Controls.check(oldpad, SCE_CTRL_LTRIGGER) and not freeze then
 		order_idx = order_idx - 1
